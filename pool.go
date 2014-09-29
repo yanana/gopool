@@ -11,7 +11,7 @@ type Pool struct {
 	semaphore        chan int
 }
 
-func (p *Pool) startDispatcher() {
+func (p *Pool) StartDispatcher() {
 	fmt.Printf("Pool.poolSize: %d\n", p.poolSize)
 	for i := 0; i < p.poolSize; i++ {
 		fmt.Println("Starting worker[%d]", i)
