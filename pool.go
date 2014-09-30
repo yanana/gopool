@@ -3,29 +3,29 @@ package gopool
 import "fmt"
 
 type Pool struct {
-	taskQueue        chan Task
-	workerQueue      chan chan Task
-	poolSize         int
-	queueCapacity    int
-	numOfQueuedTasks int
-	semaphore        chan int
+	TaskQueue        chan Task
+	WorkerQueue      chan chan Task
+	PoolSize         int
+	QueueCapacity    int
+	NumOfQueuedTasks int
+	Semaphore        chan int
 }
 
 func (p *Pool) StartDispatcher() {
-	fmt.Printf("Pool.poolSize: %d\n", p.poolSize)
-	for i := 0; i < p.poolSize; i++ {
+	fmt.Printf("Pool.poolSize: %d\n", p.PoolSize)
+	for i := 0; i < p.PoolSize; i++ {
 		fmt.Println("Starting worker[%d]", i)
-		worker := NewWorker(i+1, p.workerQueue)
+		worker := NewWorker(i+1, p.WorkerQueue)
 		worker.Start(p)
 	}
 
 	go func() {
 		for {
 			select {
-			case task := <-p.taskQueue:
+			case task := <-p.TaskQueue:
 				fmt.Println("Received task")
 				go func() {
-					worker := <-p.workerQueue
+					worker := <-p.WorkerQueue
 					fmt.Println("Dispatching task")
 					worker <- task
 				}()
@@ -40,18 +40,18 @@ func NewPool(poolSize int, queueCapacity int) *Pool {
 		semaphore <- 1
 	}
 	pool := Pool{
-		taskQueue:        make(chan Task, queueCapacity),
-		workerQueue:      make(chan chan Task, poolSize),
-		poolSize:         poolSize,
-		numOfQueuedTasks: 0,
-		queueCapacity:    queueCapacity,
-		semaphore:        semaphore,
+		TaskQueue:        make(chan Task, queueCapacity),
+		WorkerQueue:      make(chan chan Task, poolSize),
+		PoolSize:         poolSize,
+		NumOfQueuedTasks: 0,
+		QueueCapacity:    queueCapacity,
+		Semaphore:        semaphore,
 	}
 	return &pool
 }
 
 func (pool *Pool) Submit(task Task) {
-	pool.taskQueue <- task
+	pool.TaskQueue <- task
 }
 
 type Worker struct {
@@ -80,7 +80,7 @@ func (w Worker) Start(pool *Pool) {
 			case task := <-w.Task:
 				fmt.Printf("worker[%d]: Received task\n", w.Id)
 				task.Execute()
-				pool.semaphore <- 1
+				pool.Semaphore <- 1
 			case <-w.ShutdownChan:
 				fmt.Printf("worker[%d] stopping\n", w.Id)
 			}
