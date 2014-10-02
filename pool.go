@@ -3,18 +3,23 @@ package gopool
 import "fmt"
 
 type Pool struct {
+	PoolConfig
 	TaskQueue        chan Task
 	WorkerQueue      chan chan Task
-	PoolSize         int
-	QueueCapacity    int
 	NumOfQueuedTasks int
 	Semaphore        chan int
 }
 
+type PoolConfig struct {
+	PoolSize      int
+	QueueCapacity int
+	Debug         bool
+}
+
 func (p *Pool) StartDispatcher() {
-	fmt.Printf("Pool.poolSize: %d\n", p.PoolSize)
+	p.log("Pool.PoolSize: %d\n", p.PoolSize)
 	for i := 0; i < p.PoolSize; i++ {
-		fmt.Println("Starting worker[%d]", i)
+		p.log("Starting worker[%d]\n", i)
 		worker := NewWorker(i+1, p.WorkerQueue)
 		worker.Start(p)
 	}
@@ -23,10 +28,10 @@ func (p *Pool) StartDispatcher() {
 		for {
 			select {
 			case task := <-p.TaskQueue:
-				fmt.Println("Received task")
+				p.log("Received task")
 				go func() {
 					worker := <-p.WorkerQueue
-					fmt.Println("Dispatching task")
+					p.log("Dispatching task")
 					worker <- task
 				}()
 			}
@@ -34,17 +39,20 @@ func (p *Pool) StartDispatcher() {
 	}()
 }
 
-func NewPool(poolSize int, queueCapacity int) *Pool {
+func NewPool(poolSize int, queueCapacity int, debug bool) *Pool {
 	semaphore := make(chan int, queueCapacity)
 	for i := 0; i < queueCapacity; i++ {
 		semaphore <- 1
 	}
 	pool := Pool{
-		TaskQueue:        make(chan Task, queueCapacity),
-		WorkerQueue:      make(chan chan Task, poolSize),
-		PoolSize:         poolSize,
+		TaskQueue:   make(chan Task, queueCapacity),
+		WorkerQueue: make(chan chan Task, poolSize),
+		PoolConfig: PoolConfig{
+			PoolSize:      poolSize,
+			QueueCapacity: queueCapacity,
+			Debug:         debug,
+		},
 		NumOfQueuedTasks: 0,
-		QueueCapacity:    queueCapacity,
 		Semaphore:        semaphore,
 	}
 	return &pool
@@ -78,11 +86,11 @@ func (w Worker) Start(pool *Pool) {
 			w.WorkerQueue <- w.Task
 			select {
 			case task := <-w.Task:
-				fmt.Printf("worker[%d]: Received task\n", w.Id)
+				pool.log("worker[%d]: Received task\n", w.Id)
 				task.Execute()
 				pool.Semaphore <- 1
 			case <-w.ShutdownChan:
-				fmt.Printf("worker[%d] stopping\n", w.Id)
+				pool.log("worker[%d] stopping\n", w.Id)
 			}
 		}
 	}()
@@ -90,4 +98,10 @@ func (w Worker) Start(pool *Pool) {
 
 type Task interface {
 	Execute()
+}
+
+func (p *Pool) log(format string, a ...interface{}) {
+	if p.Debug {
+		fmt.Printf(format, a)
+	}
 }
